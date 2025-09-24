@@ -12,6 +12,7 @@ import Step2_StructureDefinition from './screens/Step2_StructureDefinition';
 import Step3_ContentConfiguration from './screens/Step3_ContentConfiguration';
 import Step4_PreviewAndGenerate from './screens/Step4_PreviewAndGenerate';
 import Step5_Slides from './screens/Step5_Slides';
+import Step6_ExportWP from './screens/Step6_ExportWP';
 import { SparklesIcon } from './components/icons/SparklesIcon';
 import IconButton from './components/IconButton';
 import { CodeBracketIcon } from './components/icons/CodeBracketIcon';
@@ -25,7 +26,8 @@ const WIZARD_STEPS = [
     "Structure",
     "Configuration",
     "Generate",
-    "Slides"
+    "Slides",
+    "Export"
 ];
 
 // --- FOR TESTING ONLY ---
@@ -183,12 +185,15 @@ const App: React.FC = () => {
         error: null,
         lastPrompt: '',
         apiLogs: [],
+        isExportingWp: false,
+        exportSuccessMessage: null,
     });
     
     const [showDebug, setShowDebug] = useState(false);
     
     const abortControllerRef = useRef<AbortController | null>(null);
-    
+    const pollingIntervalRef = useRef<number | null>(null);
+
     const { step, courseData, kbStatus, kbError, mode, isLoading, isRetrievingContent, isExporting, generatedSlides, runId, glmConversationId, error } = state;
 
     useEffect(() => {
@@ -202,6 +207,9 @@ const App: React.FC = () => {
         return () => {
             if (abortControllerRef.current) {
                 abortControllerRef.current.abort();
+            }
+             if (pollingIntervalRef.current) {
+                clearInterval(pollingIntervalRef.current);
             }
         };
     }, []);
@@ -320,11 +328,15 @@ const App: React.FC = () => {
         } else if (step === 2 && courseData.structureMethod === StructureMethod.DOCUMENT) {
             setState(prev => ({ ...prev, step: 3 }));
         } else {
-            setState(prev => ({ ...prev, step: Math.min(prev.step + 1, 5) }));
+            setState(prev => ({ ...prev, step: Math.min(prev.step + 1, WIZARD_STEPS.length) }));
         }
     }, [step, courseData.structureMethod]);
 
     const handleBack = useCallback(() => {
+        if (step === 6) {
+            setState(prev => ({ ...prev, step: 5, isExportingWp: false, exportSuccessMessage: null }));
+            return;
+        }
         if (step === 4 && courseData.structureMethod === StructureMethod.AI) {
             setState(prev => ({ ...prev, step: 2 }));
         } else if (step === 3 && courseData.structureMethod === StructureMethod.DOCUMENT) {
@@ -745,7 +757,18 @@ const App: React.FC = () => {
                             onCancelGeneration={handleCancelGeneration}
                             mode={mode}
                             onLog={handleLog}
+                            onGoToExport={() => setState(prev => ({ ...prev, step: 6 }))}
                         />;
+            case 6:
+                return <Step6_ExportWP 
+                    courseData={courseData as CourseData}
+                    generatedSlides={generatedSlides}
+                    runId={runId}
+                    conversationId={glmConversationId}
+                    state={state}
+                    setState={setState}
+                    onLog={handleLog}
+                />
             default:
                 return <div>Unknown Step</div>;
         }

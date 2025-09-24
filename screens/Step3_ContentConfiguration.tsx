@@ -34,6 +34,9 @@ const Step3_ContentConfiguration: React.FC<Step3Props> = ({ courseData, setCours
     ) => {
         setCourseData(prev => {
             const currentData = prev as GeneralCourseData;
+            if (!currentData.slides) {
+                return prev;
+            }
             const newSlides = currentData.slides.map(slide => 
                 slide.id === slideId ? { ...slide, [field]: value } : slide
             );
@@ -46,6 +49,9 @@ const Step3_ContentConfiguration: React.FC<Step3Props> = ({ courseData, setCours
     ) => {
         setCourseData(prev => {
             const currentData = prev as MicrolearningCourseData;
+            if (!currentData.slides) {
+                return prev;
+            }
             const newSlides = currentData.slides.map(slide => 
                 slide.id === slideId ? { ...slide, [field]: value } : slide
             );
@@ -132,7 +138,7 @@ const Step3_ContentConfiguration: React.FC<Step3Props> = ({ courseData, setCours
     const handleRemoveGeneralSlideById = (slideId: number) => {
         setCourseData(prev => {
             const currentData = prev as GeneralCourseData;
-            if (currentData.slideCount > MIN_SLIDES_GENERAL) {
+            if (currentData.slides && currentData.slideCount > MIN_SLIDES_GENERAL) {
                 return {
                     ...currentData,
                     slideCount: currentData.slideCount - 1,
@@ -159,7 +165,7 @@ const Step3_ContentConfiguration: React.FC<Step3Props> = ({ courseData, setCours
     const handleRemoveMicroSlideById = (slideId: number) => {
         setCourseData(prev => {
             const currentData = prev as MicrolearningCourseData;
-            if (currentData.slideCount > MIN_SLIDES_MICRO) {
+            if (currentData.slides && currentData.slideCount > MIN_SLIDES_MICRO) {
                 return {
                     ...currentData,
                     slideCount: currentData.slideCount - 1,
@@ -171,7 +177,7 @@ const Step3_ContentConfiguration: React.FC<Step3Props> = ({ courseData, setCours
     };
 
     const getAvailableContentTypes = (currentSlide: GeneralCourseSlide): GeneralContentType[] => {
-        const allSlides = (courseData as GeneralCourseData).slides;
+        const allSlides = (courseData as GeneralCourseData).slides || [];
         const allPossibleTypes = ALL_GENERAL_CONTENT_TYPES;
 
         if (allSlides.length <= 1) {
@@ -197,7 +203,7 @@ const Step3_ContentConfiguration: React.FC<Step3Props> = ({ courseData, setCours
     };
 
     const getAvailableMicroContentTypes = (currentSlide: MicrolearningSlide): MicrolearningContentType[] => {
-        const allSlides = (courseData as MicrolearningCourseData).slides;
+        const allSlides = (courseData as MicrolearningCourseData).slides || [];
         const allPossibleTypes = ALL_MICROLEARNING_CONTENT_TYPES;
 
         if (allSlides.length <= 1) {
@@ -222,8 +228,8 @@ const Step3_ContentConfiguration: React.FC<Step3Props> = ({ courseData, setCours
         return availableTypes;
     };
 
-    if (isGeneral && generalData.slides.length !== generalData.slideCount) return <div>Loading configuration...</div>
-    if (!isGeneral && microData.slides.length !== microData.slideCount) return <div>Loading configuration...</div>
+    if (isGeneral && (!generalData.slides || generalData.slides.length !== generalData.slideCount)) return <div>Loading configuration...</div>;
+    if (!isGeneral && (!microData.slides || microData.slides.length !== microData.slideCount)) return <div>Loading configuration...</div>;
 
     return (
         <div className="flex flex-col">
@@ -249,14 +255,14 @@ const Step3_ContentConfiguration: React.FC<Step3Props> = ({ courseData, setCours
                             <Button 
                                 variant="primary" 
                                 onClick={handleAddGeneralSlide} 
-                                disabled={generalData.slideCount >= MAX_SLIDES_GENERAL}
+                                disabled={!generalData.slides || generalData.slideCount >= MAX_SLIDES_GENERAL}
                                 className="px-3 py-1 text-sm"
                             >
                                 Add Slide
                             </Button>
-                            <span className="font-bold text-lg text-gray-700">{generalData.slideCount} / {MAX_SLIDES_GENERAL}</span>
+                            <span className="font-bold text-lg text-gray-700">{generalData.slideCount || 0} / {MAX_SLIDES_GENERAL}</span>
                         </div>
-                        {generalData.slides.map((slide, slideIndex) => {
+                        {(generalData.slides || []).map((slide, slideIndex) => {
                             const availableTypes = getAvailableContentTypes(slide);
                             return (
                                 <Card key={slide.id}>
@@ -265,7 +271,7 @@ const Step3_ContentConfiguration: React.FC<Step3Props> = ({ courseData, setCours
                                             <h3 className="text-xl font-bold text-[#219ebc]">Slide {slideIndex + 1}</h3>
                                             <IconButton
                                                 onClick={() => handleRemoveGeneralSlideById(slide.id)}
-                                                disabled={generalData.slideCount <= MIN_SLIDES_GENERAL}
+                                                disabled={!generalData.slides || generalData.slideCount <= MIN_SLIDES_GENERAL}
                                                 className="p-1 bg-red-600/80 hover:bg-red-600 text-white disabled:bg-red-300 disabled:hover:bg-red-300"
                                                 aria-label={`Remove Slide ${slideIndex + 1}`}
                                             >
@@ -318,14 +324,14 @@ const Step3_ContentConfiguration: React.FC<Step3Props> = ({ courseData, setCours
                             <Button 
                                 variant="primary" 
                                 onClick={handleAddMicroSlide} 
-                                disabled={microData.slideCount >= MAX_SLIDES_MICRO}
+                                disabled={!microData.slides || microData.slideCount >= MAX_SLIDES_MICRO}
                                 className="px-3 py-1 text-sm"
                             >
                                 Add Slide
                             </Button>
-                            <span className="font-bold text-lg text-gray-700">{microData.slideCount} / {MAX_SLIDES_MICRO}</span>
+                            <span className="font-bold text-lg text-gray-700">{microData.slideCount || 0} / {MAX_SLIDES_MICRO}</span>
                         </div>
-                        {microData.slides.map((slide, slideIndex) => {
+                        {(microData.slides || []).map((slide, slideIndex) => {
                             const availableTypes = getAvailableMicroContentTypes(slide);
                             return (
                              <Card key={slide.id}>
@@ -334,7 +340,7 @@ const Step3_ContentConfiguration: React.FC<Step3Props> = ({ courseData, setCours
                                         <h3 className="text-xl font-bold text-[#ffb703]">Slide {slideIndex + 1}</h3>
                                         <IconButton
                                             onClick={() => handleRemoveMicroSlideById(slide.id)}
-                                            disabled={microData.slideCount <= MIN_SLIDES_MICRO}
+                                            disabled={!microData.slides || microData.slideCount <= MIN_SLIDES_MICRO}
                                             className="p-1 bg-red-600/80 hover:bg-red-600 text-white disabled:bg-red-300 disabled:hover:bg-red-300"
                                             aria-label={`Remove Slide ${slideIndex + 1}`}
                                         >

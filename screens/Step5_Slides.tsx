@@ -15,6 +15,7 @@ interface Step5_SlidesProps {
     onCancelGeneration: () => void;
     mode: AgenticMode;
     onLog?: (log: any) => void;
+    onGoToExport: () => void;
 }
 
 const SlideViewer: React.FC<{ slide: GeneratedSlide; mode: AgenticMode; onLog?: (log: any) => void; }> = ({ slide, mode, onLog }) => {
@@ -63,47 +64,31 @@ const SlideViewer: React.FC<{ slide: GeneratedSlide; mode: AgenticMode; onLog?: 
     };
     
     const handleIframeLoad = (e: React.SyntheticEvent<HTMLIFrameElement>) => {
-        // Run original inspection logic first
         handleIframeInspection(e);
 
-        // Add new scaling logic
         const iframe = e.currentTarget;
         try {
             const doc = iframe.contentDocument;
-            if (!doc || !doc.body) return;
-
-            // Define the assumed native resolution of the slide content (e.g., 16:9 presentation)
-            const NATIVE_WIDTH = 1280;
-            const NATIVE_HEIGHT = 720;
-
-            const { clientWidth: iframeWidth, clientHeight: iframeHeight } = iframe;
-            
-            // Don't scale if the iframe is already large enough
-            if (iframeWidth >= NATIVE_WIDTH && iframeHeight >= NATIVE_HEIGHT) {
+            if (!doc || !doc.body) {
+                if (onLog) onLog({ ts: Date.now(), level: "warn", scope: "viewer.iframe.resize", msg: "Iframe document or body not found." });
                 return;
             }
 
-            // Calculate scale factor to fit content within the iframe, maintaining aspect ratio
-            const scale = Math.min(iframeWidth / NATIVE_WIDTH, iframeHeight / NATIVE_HEIGHT);
-            
-            // Apply scaling only if it needs to be scaled down
-            if (scale < 1) {
-                const body = doc.body;
-                // Set body size to the native resolution for consistent scaling
-                body.style.width = `${NATIVE_WIDTH}px`;
-                body.style.height = `${NATIVE_HEIGHT}px`;
-                // Apply the scale transform
-                body.style.transform = `scale(${scale})`;
-                body.style.transformOrigin = '0 0';
+            // Apply styles for accurate measurement and appearance
+            doc.body.style.margin = '0';
+            doc.body.style.overflow = 'hidden';
 
-                // Hide scrollbars on the root element of the iframe's document
-                if (doc.documentElement) {
-                    doc.documentElement.style.overflow = 'hidden';
-                }
+            // Calculate and set the height
+            const contentHeight = doc.body.scrollHeight;
+            if (contentHeight > 0) {
+                iframe.style.height = `${contentHeight}px`;
+            } else {
+                // Fallback in case scrollHeight is 0
+                iframe.style.height = '500px';
             }
         } catch (err: any) {
             if (onLog) {
-                onLog({ ts: Date.now(), level: "warn", scope: "viewer.iframe.scale", msg: `Failed to apply scaling: ${String(err.message)}` });
+                onLog({ ts: Date.now(), level: "warn", scope: "viewer.iframe.resize", msg: `Failed to apply auto-height: ${String(err.message)}` });
             }
         }
     };
@@ -150,10 +135,11 @@ const SlideViewer: React.FC<{ slide: GeneratedSlide; mode: AgenticMode; onLog?: 
                 )}
             </div>
              {activeTab === 'Preview' ? (
-                 <div className="rounded border h-[760px] overflow-hidden bg-white">
+                 <div className="rounded border bg-white">
                     {slide.complete ? (
                         <iframe
-                            className="w-full h-full border-none"
+                            className="w-full border-none"
+                            style={{ minHeight: '500px', display: 'block' }}
                             title={`Preview of Slide ${slide.pageNumber}`}
                             srcDoc={slide.html}
                             sandbox="allow-scripts allow-same-origin"
@@ -161,7 +147,7 @@ const SlideViewer: React.FC<{ slide: GeneratedSlide; mode: AgenticMode; onLog?: 
                             onLoad={handleIframeLoad}
                         />
                     ) : (
-                        <div className="w-full h-full flex flex-col items-center justify-center text-sm text-gray-600 bg-gray-50">
+                        <div className="w-full h-[760px] flex flex-col items-center justify-center text-sm text-gray-600 bg-gray-50">
                             <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-[#219ebc] mb-4"></div>
                             <p className="font-semibold">Waiting for complete HTML stream...</p>
                             <p className="mt-1 text-xs text-gray-500">({(slide.draft?.length ?? 0).toLocaleString()} bytes received)</p>
@@ -195,6 +181,7 @@ const Step5_Slides: React.FC<Step5_SlidesProps> = ({
     onCancelGeneration,
     mode,
     onLog,
+    onGoToExport,
 }) => {
     const [editingSlide, setEditingSlide] = useState<{ index: number; instruction: string } | null>(null);
 
@@ -235,8 +222,15 @@ const Step5_Slides: React.FC<Step5_SlidesProps> = ({
                     ) : (
                         <>
                             <Button
-                                onClick={onExport}
+                                onClick={onGoToExport}
                                 variant="primary"
+                                disabled={isExporting || !conversationId || slides.length === 0}
+                            >
+                                Export to WordPress
+                            </Button>
+                            <Button
+                                onClick={onExport}
+                                variant="secondary"
                                 disabled={isExporting || !conversationId || slides.length === 0}
                             >
                                 {isExporting ? 'Exporting...' : 'Download Deck'}

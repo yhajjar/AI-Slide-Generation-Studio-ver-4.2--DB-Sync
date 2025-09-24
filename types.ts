@@ -85,6 +85,20 @@ export interface MicrolearningCourseData {
 
 export type CourseData = GeneralCourseData | MicrolearningCourseData;
 
+export type ExportMode = 'new' | 'existing';
+
+export interface TopicDraft {
+  slideIndex: number;
+  title: string;
+  include: boolean;
+  html: string;
+}
+
+export interface WPCourse {
+  id: number;
+  title: string;
+}
+
 export interface SlideGenState {
   step: number;
   courseData: Partial<CourseData>;
@@ -100,6 +114,8 @@ export interface SlideGenState {
   error: string | null;
   lastPrompt: string;
   apiLogs: string[];
+  isExportingWp: boolean;
+  exportSuccessMessage: string | null;
 }
 
 export interface GeneratedSlide {

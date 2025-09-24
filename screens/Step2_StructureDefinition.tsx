@@ -147,7 +147,6 @@ const Step2_StructureDefinition: React.FC<Step2Props> = ({ courseData, updateCou
                     onChange={(e) => updateCourseData({ courseTopic: e.target.value })}
                     placeholder="e.g., Introduction to Quantum Physics"
                     className="w-full bg-white border border-gray-300 rounded-md py-2 px-4 text-gray-900 focus:ring-[#219ebc] focus:border-[#219ebc]"
-                    disabled={courseData.structureMethod === StructureMethod.DOCUMENT && kbStatus === 'ready'}
                 />
             </div>
 

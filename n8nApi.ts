@@ -1,8 +1,13 @@
 // n8nApi.ts
-import { CourseType } from './types';
+import { CourseType, WPCourse } from './types';
+import { debugFetch } from '../utils/debug';
 
 const N8N_UPSERT_URL = 'https://n8n.myapps.mylabs.click/webhook/upsert';
 const N8N_RETRIEVE_URL = 'https://n8n.myapps.mylabs.click/webhook/retrieve';
+
+// Base URL for all WordPress-related n8n webhooks.
+const WP_WEBHOOK_BASE_URL = 'https://n8n.ankapps.ankabut.ac.ae/webhook';
+
 
 const log = (onLog?: (s: string) => void, msg = "") => {
   if (!onLog) return;
@@ -33,10 +38,10 @@ export async function upsertDocument(
   }
 
   try {
-    const response = await fetch(N8N_UPSERT_URL, {
+    const response = await debugFetch(N8N_UPSERT_URL, {
       method: 'POST',
       body: formData,
-    });
+    }, onLog, { label: 'n8n-upsert' });
 
     log(onLog, `Upload response status: ${response.status}`);
     
@@ -90,13 +95,13 @@ export async function retrieveGroundTruth(
   log(onLog, `Retrieving ground truth for sourceId "${params.sourceId}" with runId ${params.runId}`);
 
   try {
-    const response = await fetch(N8N_RETRIEVE_URL, {
+    const response = await debugFetch(N8N_RETRIEVE_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(params),
-    });
+    }, onLog, { label: 'n8n-retrieve' });
     
     log(onLog, `Retrieve response status: ${response.status}`);
 
@@ -126,4 +131,89 @@ export async function retrieveGroundTruth(
     log(onLog, `Retrieve error: ${message}`);
     throw error;
   }
+}
+
+// --- WordPress Export APIs ---
+
+async function handleWpApiError(res: Response, context: string): Promise<Error> {
+    const errorText = await res.text();
+    let message = `Failed to ${context}: ${res.status} ${res.statusText || ''}`.trim();
+    try {
+        const errorJson = JSON.parse(errorText);
+        const n8nError = errorJson.error?.message || errorJson.message;
+        if (n8nError) {
+            message = `Failed to ${context}: n8n workflow execution failed. See logs for details.`;
+        }
+    } catch {
+        // Not a JSON error, stick with the original message.
+    }
+    return new Error(message);
+}
+
+// This is the type of the raw response from the webhook for a single course.
+interface WPCourseFromWebhook {
+    course_id: number;
+    course_title: string;
+}
+
+export async function wpSearchCourses(q: string, page = 1, onLog?: (message: string) => void): Promise<{ items: WPCourse[], total: number }> {
+  const baseUrl = `${WP_WEBHOOK_BASE_URL}/get-courses`;
+  const params = new URLSearchParams();
+  params.append('page', page.toString());
+
+  if (q && q.trim()) {
+    params.append('query', q.trim());
+  }
+
+  const url = `${baseUrl}?${params.toString()}`;
+
+  const res = await debugFetch(url, {
+    method: 'GET',
+  }, onLog, { label: 'wp-search-courses' });
+
+  if (!res.ok) throw await handleWpApiError(res, 'fetch courses');
+  
+  // The webhook returns an array of courses directly with different key names.
+  const rawCourses: WPCourseFromWebhook[] = await res.json();
+
+  // Map the raw response to the internal WPCourse format used by the application.
+  const items: WPCourse[] = rawCourses.map(course => ({
+      id: course.course_id,
+      title: course.course_title,
+  }));
+  
+  // The total count is the length of the returned array, as there's no separate total field.
+  const total = items.length;
+
+  return { items, total };
+}
+
+export async function wpCreateCourse(payload: { title: string; description?: string }, onLog?: (message: string) => void): Promise<{ courseId: number }> {
+  const res = await debugFetch(`${WP_WEBHOOK_BASE_URL}/create-course`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  }, onLog, { label: 'wp-create-course' });
+  if (!res.ok) throw await handleWpApiError(res, 'create course');
+  return res.json();
+}
+
+export interface WpExportPayload {
+  mode: 'new' | 'existing';
+  course: { id: number } | { title: string; description?: string };
+  lesson: { title: string };
+  topics: { title: string; html: string }[];
+  publish: 'draft' | 'publish';
+  runId?: string | null;
+  conversationId?: string | null;
+}
+
+export async function wpStartExport(payload: WpExportPayload, onLog?: (message: string) => void): Promise<{ status: string }> {
+  const res = await debugFetch(`${WP_WEBHOOK_BASE_URL}/create-lesson`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  }, onLog, { label: 'wp-create-lesson' });
+  if (!res.ok) throw await handleWpApiError(res, 'start export');
+  return res.json();
 }

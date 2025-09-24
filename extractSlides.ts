@@ -132,11 +132,26 @@ export function finalizeSlides(state: StreamExtractionState): { position: number
     }
 
     // Fallback: if no tool slides, try assistant buffer (for raw HTML-in-text runs)
-    if (!slides.length) {
+    if (!slides.length && state.assistantBuf) {
         // tolerate accidental markdown fences
         const buf = state.assistantBuf.replace(/^```(?:html)?\s*/i, "").replace(/\s*```$/i, "");
-        const html = cutFirstHtmlDoc(buf);
-        if (html) slides.push({ position: 1, html });
+        
+        // Fix: Use a global regex to find ALL html documents in the buffer. This handles cases where the AI
+        // concatenates all slide outputs into the main text response instead of using separate tool calls.
+        const HTML_DOC_RE_GLOBAL = /<!doctype html[\s\S]*?<\/html>/gi;
+        const matches = buf.match(HTML_DOC_RE_GLOBAL);
+
+        if (matches && matches.length > 0) {
+            matches.forEach((html, index) => {
+                slides.push({ position: index + 1, html: html.trim() });
+            });
+        } else {
+            // If no full docs, try to grab the first chunk as a fallback (maintains old behavior for partial/malformed responses)
+            const html = cutFirstHtmlDoc(buf);
+            if (html) {
+                slides.push({ position: 1, html });
+            }
+        }
     }
 
     return slides;
