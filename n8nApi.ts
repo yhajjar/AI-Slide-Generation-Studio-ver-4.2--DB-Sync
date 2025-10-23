@@ -19,15 +19,17 @@ interface UpsertResponse {
 }
 
 export async function upsertDocument(
-  file: File,
+  files: File[],
   metadata: { runId: string; topic: string },
   onLog?: (message: string) => void
 ): Promise<UpsertResponse> {
-  log(onLog, `Uploading document "${file.name}" for topic "${metadata.topic}" with runId ${metadata.runId}`);
+  log(onLog, `Uploading ${files.length} document(s) for topic "${metadata.topic}" with runId ${metadata.runId}`);
   
   const formData = new FormData();
   // Explicitly append fields with the correct keys as required by the n8n webhook.
-  formData.append('file', file);
+  files.forEach(file => {
+    formData.append('file', file);
+  });
   formData.append('runId', metadata.runId);
   formData.append('topic', metadata.topic);
 

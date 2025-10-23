@@ -57,7 +57,7 @@ export interface GeneralCourseData {
   slideCount: number;
   slides: GeneralCourseSlide[];
   kbId?: string;
-  fileName?: string;
+  fileNames?: string[];
 }
 
 export interface MicrolearningSlide {
@@ -80,7 +80,7 @@ export interface MicrolearningCourseData {
   // FIX: Add optional 'selectedInteractives' to support selection of interactive elements for microlearning courses.
   selectedInteractives?: InteractiveElement[];
   kbId?: string;
-  fileName?: string;
+  fileNames?: string[];
 }
 
 export type CourseData = GeneralCourseData | MicrolearningCourseData;

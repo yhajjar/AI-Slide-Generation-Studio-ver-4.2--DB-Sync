@@ -20,6 +20,8 @@ import DebugPanel from './components/DebugPanel';
 import Button from './components/Button';
 import { ChevronLeftIcon } from './components/icons/ChevronLeftIcon';
 import { ChevronRightIcon } from './components/icons/ChevronRightIcon';
+import { currentUser, logout, User } from './auth';
+import { LoginView } from './screens/Auth';
 
 const WIZARD_STEPS = [
     "Course Type",
@@ -76,9 +78,9 @@ const payloadToPrompt = (payload: CourseData, opts: { mode: AgenticMode; groundT
 
   if (groundTruth) {
       out += `IMPORTANT CONTEXT: You MUST use the following text as the sole source of truth for generating the slides. All facts, figures, and concepts must come from this text. Do not use general knowledge.\n---BEGIN CONTEXT---\n${groundTruth}\n---END CONTEXT---\n\n`;
-  } else if (payload.structureMethod === StructureMethod.DOCUMENT && payload.fileName) {
+  } else if (payload.structureMethod === StructureMethod.DOCUMENT && payload.fileNames && payload.fileNames.length > 0) {
       out +=
-      `IMPORTANT CONTEXT: The user uploaded "${payload.fileName}". ` +
+      `IMPORTANT CONTEXT: The user uploaded "${payload.fileNames.join(', ')}". ` +
       `Use ONLY content derived from this document for facts and figures.\n\n`;
   }
 
@@ -169,7 +171,7 @@ const buildSlidesRequestPayload = (slides: (GeneralCourseSlide | MicrolearningSl
 };
 
 
-const App: React.FC = () => {
+const WizardFlow: React.FC = () => {
     const [state, setState] = useState<SlideGenState>({
         step: 1,
         courseData: {},
@@ -230,7 +232,7 @@ const App: React.FC = () => {
         setState(prev => ({ ...prev, apiLogs: [...prev.apiLogs, `[${new Date().toLocaleTimeString()}] ${logString}`].slice(-500) }));
     }, []);
 
-    const handleFileUpload = useCallback(async (file: File) => {
+    const handleFileUpload = useCallback(async (files: File[]) => {
         if (!runId) {
             handleLog('[Doc Flow] Error: runId is missing.');
             setState(prev => ({
@@ -240,15 +242,20 @@ const App: React.FC = () => {
             }));
             return;
         }
+        if (files.length === 0) {
+            return;
+        }
         setState(prev => ({...prev, apiLogs: [], kbError: null, kbStatus: 'uploading'}));
-        const topic = file.name.split('.').slice(0, -1).join('.').replace(/_/g, ' ');
+        
+        const topic = files[0].name.split('.').slice(0, -1).join('.').replace(/_/g, ' ');
+        const fileNames = files.map(f => f.name);
 
-        handleUpdateCourseData({ fileName: file.name, courseTopic: topic, kbId: undefined });
-        handleLog(`[Doc Flow] Starting document processing for: ${file.name} with n8n.`);
+        handleUpdateCourseData({ fileNames: fileNames, courseTopic: topic, kbId: undefined });
+        handleLog(`[Doc Flow] Starting document processing for: ${fileNames.join(', ')} with n8n.`);
 
         try {
             const { sourceId } = await upsertDocument(
-                file,
+                files,
                 { runId, topic },
                 handleLog
             );
@@ -775,45 +782,43 @@ const App: React.FC = () => {
     };
     
     return (
-        <div className="min-h-screen bg-gray-100 text-gray-800 flex flex-col items-center p-4 sm:p-8">
-            <div className="w-full max-w-5xl">
-                <header className="text-center mb-8">
-                    <div className="flex justify-center items-center gap-x-4 gap-y-2 flex-wrap">
-                        <h1 className="text-4xl sm:text-5xl font-bold text-gray-900 flex items-center gap-3">
-                            <SparklesIcon/> AI Slide Generation Studio
-                        </h1>
-                        <div className="flex items-center gap-3">
-                            <div className="h-7 w-px bg-gray-300"></div>
-                            <p className="text-base text-gray-600">Powered by Ankabut Labs</p>
-                        </div>
+        <div className="w-[90%]">
+            <header className="text-center mb-8">
+                <div className="flex justify-center items-center gap-x-4 gap-y-2 flex-wrap">
+                    <h1 className="text-4xl sm:text-5xl font-bold text-gray-900 flex items-center gap-3">
+                        <SparklesIcon/> AI Slide Generation Studio
+                    </h1>
+                    <div className="flex items-center gap-3">
+                        <div className="h-7 w-px bg-gray-300"></div>
+                        <p className="text-base text-gray-600">Powered by Ankabut Labs</p>
                     </div>
-                    <p className="text-lg text-[#219ebc] mt-2">Craft professional courses with the power of AI</p>
-                </header>
-                
-                {step > 0 && step <= WIZARD_STEPS.length && (
-                    <div className="mb-8 px-4 py-2 bg-white/50 backdrop-blur-sm rounded-full shadow-inner border border-gray-200">
-                        <StepIndicator steps={WIZARD_STEPS} currentStep={step - 1} />
-                    </div>
-                )}
+                </div>
+                <p className="text-lg text-[#219ebc] mt-2">Craft professional courses with the power of AI</p>
+            </header>
+            
+            {step > 0 && step <= WIZARD_STEPS.length && (
+                <div className="mb-8 px-4 py-2 bg-white/50 backdrop-blur-sm rounded-full shadow-inner border border-gray-200">
+                    <StepIndicator steps={WIZARD_STEPS} currentStep={step - 1} />
+                </div>
+            )}
 
-                <main className="bg-white rounded-xl shadow-lg p-6 sm:p-10 min-h-[500px]">
-                    {renderStep()}
-                     {step === 3 && error && <p className="text-red-600 mt-4 text-sm text-center font-semibold">{error}</p>}
-                </main>
-                
-                 {step > 1 && step < 5 && (
-                    <footer className="mt-8 flex justify-between items-center">
-                        <Button onClick={handleBack} variant="secondary" className="flex items-center gap-2">
-                            <ChevronLeftIcon className="w-5 h-5"/> Back
+            <main className="bg-white rounded-xl shadow-lg p-6 sm:p-10 min-h-[500px]">
+                {renderStep()}
+                 {step === 3 && error && <p className="text-red-600 mt-4 text-sm text-center font-semibold">{error}</p>}
+            </main>
+            
+             {step > 1 && step < 5 && (
+                <footer className="mt-8 flex justify-between items-center">
+                    <Button onClick={handleBack} variant="secondary" className="flex items-center gap-2">
+                        <ChevronLeftIcon className="w-5 h-5"/> Back
+                    </Button>
+                    {step < 4 && (
+                        <Button onClick={handleNext} disabled={isNextDisabled} className="flex items-center gap-2">
+                            Next <ChevronRightIcon className="w-5 h-5"/>
                         </Button>
-                        {step < 4 && (
-                            <Button onClick={handleNext} disabled={isNextDisabled} className="flex items-center gap-2">
-                                Next <ChevronRightIcon className="w-5 h-5"/>
-                            </Button>
-                        )}
-                    </footer>
-                )}
-            </div>
+                    )}
+                </footer>
+            )}
             <div className="fixed bottom-4 left-4 z-50">
                 <IconButton onClick={() => setShowDebug(s => !s)} className="bg-gray-700 hover:bg-gray-600">
                     <CodeBracketIcon />
@@ -829,4 +834,87 @@ const App: React.FC = () => {
     );
 };
 
-export default App;
+export default function App() {
+  const [mode, setMode] = useState<"login" | "app">("login");
+  const [user, setUser] = useState<User | null>(currentUser());
+  const idleTimerRef = useRef<number | null>(null);
+
+  const handleLogout = useCallback(() => {
+    logout();
+    setUser(null);
+    setMode("login");
+  }, []);
+
+  const resetIdleTimer = useCallback(() => {
+    if (idleTimerRef.current) {
+      clearTimeout(idleTimerRef.current);
+    }
+    idleTimerRef.current = window.setTimeout(() => {
+      handleLogout();
+    }, 10 * 60 * 1000); // 10 minutes
+  }, [handleLogout]);
+
+  useEffect(() => {
+    if (user) {
+        setMode("app");
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (mode === 'app' && user) {
+      const events: (keyof WindowEventMap)[] = ['mousemove', 'keydown', 'mousedown', 'touchstart'];
+      
+      resetIdleTimer();
+
+      events.forEach(event => window.addEventListener(event, resetIdleTimer));
+
+      return () => {
+        if (idleTimerRef.current) {
+          clearTimeout(idleTimerRef.current);
+        }
+        events.forEach(event => window.removeEventListener(event, resetIdleTimer));
+      };
+    }
+  }, [mode, user, resetIdleTimer]);
+
+  if (mode !== "app" || !user) {
+    return (
+      <LoginView
+        onSuccess={() => {
+          setUser(currentUser());
+          setMode("app");
+        }}
+      />
+    );
+  }
+
+  return (
+    <div className="min-h-screen flex flex-col bg-gradient-to-br from-slate-50 to-indigo-100">
+      <header className="border-b border-gray-200 bg-white/75 backdrop-saturate-180 backdrop-blur-md sticky top-0 z-10">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-3 text-gray-800 font-bold">
+            <span className="text-sky-600 text-xl">✨</span>
+            <span>AI Slide Generation Studio</span>
+          </div>
+          <div className="flex items-center gap-3 text-sm text-gray-700">
+            <span>{user.name}</span>
+            <button
+              onClick={handleLogout}
+              className="px-3 py-1.5 border border-gray-300 rounded-md bg-white hover:bg-gray-50 transition-colors"
+            >
+              Logout
+            </button>
+          </div>
+        </div>
+      </header>
+      
+      <main className="flex-1 w-full p-4 sm:p-8 flex flex-col items-center">
+        <WizardFlow />
+      </main>
+
+      <footer className="border-t border-gray-200 bg-white/85 p-2.5 text-center text-xs text-gray-500">
+        © {new Date().getFullYear()} Ankabut Labs • AI Slide Generation Studio
+      </footer>
+    </div>
+  );
+}

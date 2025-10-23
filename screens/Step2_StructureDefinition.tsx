@@ -11,7 +11,7 @@ import { MinusIcon } from '../components/icons/MinusIcon';
 interface Step2Props {
   courseData: CourseData;
   updateCourseData: (data: Partial<CourseData>) => void;
-  onFileUpload: (file: File) => void;
+  onFileUpload: (files: File[]) => void;
   kbStatus: KbStatus;
   kbError: string | null;
 }
@@ -39,22 +39,22 @@ const NumberControl: React.FC<{
 );
 
 const DocumentUploader: React.FC<{
-    onFileUpload: (file: File) => void;
+    onFileUpload: (files: File[]) => void;
     kbStatus: KbStatus;
     kbError: string | null;
-    fileName?: string;
-}> = ({ onFileUpload, kbStatus, kbError, fileName }) => {
-    const [selectedFile, setSelectedFile] = useState<File | null>(null);
+    fileNames?: string[];
+}> = ({ onFileUpload, kbStatus, kbError, fileNames }) => {
+    const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
 
     const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-        if (event.target.files && event.target.files[0]) {
-            setSelectedFile(event.target.files[0]);
+        if (event.target.files && event.target.files.length > 0) {
+            setSelectedFiles(Array.from(event.target.files));
         }
     };
 
     const handleUploadClick = () => {
-        if (selectedFile) {
-            onFileUpload(selectedFile);
+        if (selectedFiles.length > 0) {
+            onFileUpload(selectedFiles);
         }
     };
 
@@ -69,7 +69,7 @@ const DocumentUploader: React.FC<{
             messageColor = 'text-blue-600';
             break;
         case 'uploading':
-            statusMessage = 'Uploading document...';
+            statusMessage = 'Uploading document(s)...';
             messageColor = 'text-blue-600';
             break;
         case 'vectorizing':
@@ -81,8 +81,8 @@ const DocumentUploader: React.FC<{
             messageColor = 'text-blue-600';
             break;
         case 'ready':
-            if (fileName) {
-                statusMessage = `✅ Ready to use: ${fileName}`;
+            if (fileNames && fileNames.length > 0) {
+                statusMessage = `✅ Ready to use: ${fileNames.join(', ')}`;
                 messageColor = 'text-green-600';
             }
             break;
@@ -99,16 +99,25 @@ const DocumentUploader: React.FC<{
             <div className="flex flex-col items-center gap-4">
                 <input
                     type="file"
+                    multiple
                     onChange={handleFileChange}
                     disabled={isProcessing || kbStatus === 'ready'}
                     className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-[#e3f6fa] file:text-[#219ebc] hover:file:bg-[#cbeff7]"
                     accept=".pdf,.doc,.docx,.txt"
                 />
+                {selectedFiles.length > 0 && (
+                    <div className="text-xs text-gray-600 w-full bg-gray-100 p-2 rounded-md">
+                        <strong>Selected files:</strong>
+                        <ul className="list-disc list-inside">
+                            {selectedFiles.map(f => <li key={f.name}>{f.name}</li>)}
+                        </ul>
+                    </div>
+                )}
                 <Button 
                     onClick={handleUploadClick} 
-                    disabled={!selectedFile || isProcessing || kbStatus === 'ready'}
+                    disabled={selectedFiles.length === 0 || isProcessing || kbStatus === 'ready'}
                 >
-                    {isProcessing ? 'Processing...' : 'Upload and Process'}
+                    {isProcessing ? 'Processing...' : `Upload and Process ${selectedFiles.length > 0 ? `(${selectedFiles.length})` : ''}`}
                 </Button>
                 {statusMessage && <p className={`text-sm mt-2 font-medium ${messageColor}`}>{statusMessage}</p>}
             </div>
@@ -208,7 +217,7 @@ const Step2_StructureDefinition: React.FC<Step2Props> = ({ courseData, updateCou
                         onFileUpload={onFileUpload}
                         kbStatus={kbStatus}
                         kbError={kbError}
-                        fileName={courseData.fileName}
+                        fileNames={courseData.fileNames}
                     />
                  </div>
             )}
