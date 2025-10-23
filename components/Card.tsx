@@ -8,7 +8,7 @@ interface CardProps {
 
 const Card: React.FC<CardProps> = ({ children, className = '', onClick }) => {
   const baseClasses =
-    'bg-white border border-gray-200 rounded-lg p-6 transition-all duration-300 shadow-md';
+    'bg-white border border-gray-200 rounded-lg p-6 transition-all duration-300 shadow-md h-full';
   const interactiveClasses = onClick
     ? 'cursor-pointer hover:border-[#219ebc] hover:bg-gray-50 transform hover:-translate-y-1'
     : '';
